@@ -150,7 +150,6 @@ class DbData:
         res = self.execute("""
             UPDATE chat SET emoji = ? WHERE chat_id = ? and topic = ?;
         """, (emoji, chat_id, topic))
-        print(res)
 
 
 class Command(ABC):
@@ -248,25 +247,13 @@ class Reaction:
                     SELECT * FROM chat WHERE chat_id = ? and emoji = ?;
                 """, (self.chat_id, self.new_emoji))
 
-                if res1[0].isnumeric():
-                    if res2:
-                        return self.register_error_message('same_emoji_in_this_chat')
-                    elif not res2:
+                if res2:
+                    return self.resend_message
+                else:
+                    if res1[0].isnumeric():
                         return self.register_topic
                     else:
-                        raise Exception('Так не должно быть')
-
-                elif not res1[0].isnumeric():
-                    if res2:
-                        return self.resend_message
-                    elif not res2:
                         return None
-                    else:
-                        raise Exception('Так не должно быть')
-
-                else:
-                    raise Exception('Так не должно быть')
-
         else:
             raise Exception('Так не должно быть')
 
