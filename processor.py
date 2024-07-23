@@ -1,14 +1,51 @@
-import telebot.types
+import json
+import os
 from abc import ABC, abstractmethod
+import sqlite3
+
+import telebot.types
 
 
 class MessageToSend:
+    def __init__(self):
+        from main import bot
+        self.bot = bot
+
     text: str
     chat_id: str
     thread: int
+    markup: telebot.types.InlineKeyboardMarkup = None
 
     def send(self):
-        pass
+        self.bot.send_message(chat_id=self.chat_id,
+                              text=self.text,
+                              message_thread_id=self.thread,
+                              reply_markup=self.markup,
+                              parse_mode='html',
+                              )
+
+
+class LocalesData:
+    _filename = 'locales.json'
+
+    def __init__(self):
+        with open(self._filename, 'r') as readfile:
+            data = json.load(readfile)
+        self.data = data
+
+
+class DbData:
+    _dbname = 'data.db'
+    _schema = 'schema.sql'
+
+    def __init__(self):
+        if os.path.exists(self._dbname):
+            self.connect = sqlite3.connect(self._dbname)
+        else:
+            self.connect = sqlite3.connect(self._dbname)
+            with open(self._schema, 'r') as readfile:
+                schema = readfile.read()
+            self.connect.executescript(schema)
 
 
 class Command(ABC):
@@ -19,6 +56,8 @@ class Command(ABC):
         self.chat_id = message.chat.id
         self.chat_type = message.chat.type
 
+        self.locales_data = LocalesData().data
+
     @abstractmethod
     def define(self) -> bool:
         pass
@@ -26,23 +65,3 @@ class Command(ABC):
     @abstractmethod
     def new_message_generate(self) -> MessageToSend:
         pass
-
-
-class Message:
-    command_texts = {
-        'c_start': '/start',
-        'c_topic': '/topic',
-    }
-
-    command = None
-
-    def __init__(self, message: telebot.types.Message) -> None:
-        self.message = message
-        self._command_define()
-
-    def _command_define(self) -> None:
-        for command, keyword in self.command_texts.items():
-            if self.message.text == keyword:
-                self.command = command
-                return
-

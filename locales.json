@@ -1,6 +1,18 @@
 {
+  "lang_list": {
+    "ru": "Русский",
+    "en": "English"
+  },
   "/start": {
-    "ru": "Приветствую!",
-    "en": "Hello!"
+    "ru": "<b>Приветствую тебя $name!</b>\nЭтот бот позволяет перекидывать сообщение из одной темы чата в другую посредством реакций",
+    "en": "<b>Hello, $name!</b>\nThis bot allows you to transfer a message from one chat topic to another using reactions"
+  },
+  "/lang": {
+    "ru": "Возможные языки:",
+    "en": "Possible languages:"
+  },
+  "/topic": {
+    "ru": "Для регистрации этой темы, поставь эмодзи на данное сообщение и в дальнейшем это эмодзи будет всегда переносить сообщения в данную тему",
+    "en": "To register this topic, put an emoji on this message and in the future this emoji will always transfer messages to this topic"
   }
 }
