@@ -52,12 +52,19 @@ class DbData:
                 schema = readfile.read()
             self.connect.executescript(schema)
 
-    def execute(self, query: str, parameters: tuple = ()):
+    def execute(self, query: str, parameters: tuple = (), fetch: str = 'one'):
         try:
             cursor = self.connect.cursor()
             cursor.execute('BEGIN')
             cursor.execute(query, parameters)
-            result = cursor.fetchall()
+            if fetch == 'one':
+                result = cursor.fetchone()
+            elif fetch == 'all':
+                result = cursor.fetchall()
+            elif fetch == 'many':
+                result = cursor.fetchmany()
+            else:
+                raise Exception('Need to use one of this fetch: one, all, many')
             self.connect.commit()
             return result
         except sqlite3.IntegrityError as err:
@@ -103,7 +110,6 @@ class DbData:
             print(f'\033[32mAdd new user (\033[1;36m{user_id}, {username}\033[32m)\033[0m')
 
 
-
 class Command(ABC):
     def __init__(self, message: telebot.types.Message):
         self.message = message
@@ -111,6 +117,9 @@ class Command(ABC):
         self.text_low = message.text.lower()
         self.chat_id = message.chat.id
         self.chat_type = message.chat.type
+        self.topic = message.message_thread_id
+        if not self.topic:
+            self.topic = 0
 
         self.locales_data = LocalesData().data
 

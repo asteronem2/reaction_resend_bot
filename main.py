@@ -28,18 +28,17 @@ def command_define(message) -> Command:
 def message_handler(message: telebot.types.Message):
     command = command_define(message)
 
-    t1 = time.time()
     db = DbData()
     db.add_chat(message)
     db.add_user(message)
-    t2 = time.time()
 
-    print(t2 - t1)
     if not command:
         return
 
     new_message = command.new_message_generate()
+
     sent_message = new_message.send()
+
     command.processing(sent_message)
 
 
@@ -47,7 +46,6 @@ def message_handler(message: telebot.types.Message):
 def reaction_handler(reaction):
     print(type(reaction))
     print(reaction.new_reaction)
-
 
 
 if __name__ == '__main__':

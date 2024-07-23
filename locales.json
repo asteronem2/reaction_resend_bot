@@ -12,7 +12,7 @@
     "en": "Possible languages:"
   },
   "/topic": {
-    "ru": "Для регистрации этой темы, поставь эмодзи на данное сообщение и в дальнейшем это эмодзи будет всегда переносить сообщения в данную тему",
+    "ru": "<b>Регистрация темы:</b>\nДля регистрации этой темы, поставь эмодзи на данное сообщение и в дальнейшем это эмодзи будет всегда переносить сообщения в данную тему",
     "en": "To register this topic, put an emoji on this message and in the future this emoji will always transfer messages to this topic"
   }
 }
