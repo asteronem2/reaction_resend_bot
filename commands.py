@@ -1,5 +1,7 @@
 from string import Template
 
+import telebot
+
 from processor import Command, MessageToSend
 
 
@@ -19,6 +21,9 @@ class CommandStart(Command):
 
         return new_message
 
+    def processing(self, sent_message: telebot.types.Message) -> None:
+        # res = self.db.execute('')
+        pass
 
 class CommandTopic(Command):
     def define(self) -> bool:
@@ -36,7 +41,8 @@ class CommandTopic(Command):
 
         return new_message
 
-
+    def processing(self, sent_message: telebot.types.Message) -> None:
+        pass
 
 class CommandLang(Command):
     def define(self) -> bool:
@@ -53,4 +59,7 @@ class CommandLang(Command):
         new_message.chat_id = self.message.chat.id
 
         return new_message
+
+    def processing(self, sent_message: telebot.types.Message) -> None:
+        pass
 

@@ -1,13 +1,13 @@
 import inspect
 import os
+import time
 from typing import Type, List
 
 import telebot
 
 import commands
 from utils import DotEnvData
-from processor import Command
-
+from processor import Command, DbData
 
 EnvData = DotEnvData()
 
@@ -25,21 +25,29 @@ def command_define(message) -> Command:
 
 
 @bot.message_handler()
-def message_handler(message):
+def message_handler(message: telebot.types.Message):
     command = command_define(message)
 
+    t1 = time.time()
+    db = DbData()
+    db.add_chat(message)
+    db.add_user(message)
+    t2 = time.time()
+
+    print(t2 - t1)
     if not command:
         return
 
     new_message = command.new_message_generate()
-    new_message.send()
+    sent_message = new_message.send()
+    command.processing(sent_message)
 
 
 @bot.message_reaction_handler()
 def reaction_handler(reaction):
     print(type(reaction))
     print(reaction.new_reaction)
-    telebot.types.ReactionTypeEmoji
+
 
 
 if __name__ == '__main__':
