@@ -231,31 +231,50 @@ class Reaction:
         if self.old and not self.new:
             return None
 
+        # Проверка наличия темы текущего чата с данным emoji
         res1 = self.db.execute("""
-            SELECT emoji FROM chat WHERE chat_id = ? and topic = ?;
-        """, (self.chat_id, self.topic))
+                     SELECT * FROM chat WHERE chat_id = ? and emoji = ?;
+                 """, (self.chat_id, self.new_emoji))
 
-        if type(res1) is tuple:
-
-            if not res1[0]:
+        if res1:
+            return self.resend_message
+        else:
+            res2 = self.db.execute("""
+                    SELECT emoji FROM chat WHERE chat_id = ? and topic = ?;
+                """, (self.chat_id, self.topic))
+            if res2:
+                if res2[0].isnumeric():
+                    return self.register_topic
+                else:
+                    return None
+            else:
                 return None
 
-            else:
-                # res1 - эмодзи текущей темы чата. res2 - наличие эмодзи в одной из тем данного чата
-
-                res2 = self.db.execute("""
-                    SELECT * FROM chat WHERE chat_id = ? and emoji = ?;
-                """, (self.chat_id, self.new_emoji))
-
-                if res2:
-                    return self.resend_message
-                else:
-                    if res1[0].isnumeric():
-                        return self.register_topic
-                    else:
-                        return None
-        else:
-            raise Exception('Так не должно быть')
+        # res1 = self.db.execute("""
+        #     SELECT emoji FROM chat WHERE chat_id = ? and topic = ?;
+        # """, (self.chat_id, self.topic))
+        #
+        # if type(res1) is tuple:
+        #
+        #     if not res1[0]:
+        #         return None
+        #
+        #     else:
+        #         # res1 - эмодзи текущей темы чата. res2 - наличие эмодзи в одной из тем данного чата
+        #
+        #         res2 = self.db.execute("""
+        #             SELECT * FROM chat WHERE chat_id = ? and emoji = ?;
+        #         """, (self.chat_id, self.new_emoji))
+        #
+        #         if res2:
+        #             return self.resend_message
+        #         else:
+        #             if res1[0].isnumeric():
+        #                 return self.register_topic
+        #             else:
+        #                 return None
+        # else:
+        #     raise Exception('Так не должно быть')
 
     def register_topic(self) -> MessageToSend:
 
