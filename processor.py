@@ -31,6 +31,12 @@ class MessageToSend:
 
         return sent_message
 
+    def delete_message(self, chat_id, message_id):
+        try:
+            self.bot.delete_message(chat_id, message_id)
+        except Exception as err:
+            print(f'\033[31mERROR:\033[0m {err.__str__()}')
+
 
 class LocalesData:
     _filename = 'locales.json'
@@ -223,7 +229,7 @@ class Reaction:
         return self.register_error_message('message_created_before_bot_connected')
 
     def define(self):
-        if self.old:
+        if self.old and not self.new:
             return None
 
         res1 = self.db.execute("""
@@ -236,18 +242,27 @@ class Reaction:
                 return None
 
             else:
+                # res1 - эмодзи текущей темы чата. res2 - наличие эмодзи в одной из тем данного чата
+
                 res2 = self.db.execute("""
                     SELECT * FROM chat WHERE chat_id = ? and emoji = ?;
                 """, (self.chat_id, self.new_emoji))
 
-                if res1[0].isnumeric() and res2:
-                    return self.register_error_message('same_emoji_in_this_chat')
+                if res1[0].isnumeric():
+                    if res2:
+                        return self.register_error_message('same_emoji_in_this_chat')
+                    elif not res2:
+                        return self.register_topic
+                    else:
+                        raise Exception('Так не должно быть')
 
-                elif res1[0].isnumeric() and not res2:
-                    return self.register_topic
-
-                elif not res1[0].isnumeric() and res2:
-                    return self.resend_message
+                elif not res1[0].isnumeric():
+                    if res2:
+                        return self.resend_message
+                    elif not res2:
+                        return None
+                    else:
+                        raise Exception('Так не должно быть')
 
                 else:
                     raise Exception('Так не должно быть')
@@ -268,7 +283,30 @@ class Reaction:
         return new_message
 
     def resend_message(self) -> MessageToSend:
-        print('resend_message')
+        topic = self.db.execute("""
+            SELECT topic FROM chat WHERE chat_id = ? and emoji = ?;
+        """, (self.chat_id, self.new_emoji))[0]
+
+        find_text_res = self.db.execute("""
+            SELECT text FROM message WHERE message_id = ?;
+        """, (self.message_id, ))
+
+        if not find_text_res:
+            find_text_res = self.db.execute("""
+                        SELECT text FROM bot_message WHERE message_id = ?;
+                    """, (self.message_id,))
+        try:
+            text = find_text_res[0]
+        except:
+            raise Exception("Какая-то ошибка")
+
+        new_message = MessageToSend()
+
+        new_message.chat_id = self.chat_id
+        new_message.thread = topic
+        new_message.text = text
+
+        return new_message
 
     def register_error_message(self, error: str) -> None:
         if error == 'same_emoji_in_this_chat':

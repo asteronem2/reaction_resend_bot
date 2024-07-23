@@ -4,8 +4,8 @@
     "en": "English"
   },
   "/start": {
-    "ru": "<b>Приветствую тебя $name!</b>\nЭтот бот позволяет перекидывать сообщение из одной темы чата в другую посредством реакций",
-    "en": "<b>Hello, $name!</b>\nThis bot allows you to transfer a message from one chat topic to another using reactions"
+    "ru": "<b>Приветствую тебя $name!</b>\nЭтот бот позволяет перекидывать сообщение из одной темы чата в другую посредством реакций\n\n<i>Для присвоения эмодзи теме чата: /topic</i>",
+    "en": "<b>Hello, $name!</b>\nThis bot allows you to transfer a message from one chat topic to another using reactions\n\n<i>To assign an emoji to a chat topic: /topic</i>"
   },
   "/lang": {
     "ru": "Возможные языки:",

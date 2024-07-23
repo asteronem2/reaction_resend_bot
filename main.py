@@ -55,7 +55,7 @@ def reaction_handler(reaction: telebot.types.MessageReactionUpdated):
 
     new_message = command()
 
-    # new_message.send()
+    new_message.send()
 
 
 if __name__ == '__main__':
