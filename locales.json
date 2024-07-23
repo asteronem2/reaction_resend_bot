@@ -14,5 +14,17 @@
   "/topic": {
     "ru": "<b>Регистрация темы:</b>\nДля регистрации этой темы, поставь эмодзи на данное сообщение и в дальнейшем это эмодзи будет всегда переносить сообщения в данную тему",
     "en": "To register this topic, put an emoji on this message and in the future this emoji will always transfer messages to this topic"
+  },
+  "register_topic": {
+    "ru": "<b>Теперь эмодзи этой темы - $emoji</b>",
+    "en": "<b>Now emoji this topic - $emoji</b>"
+  },
+  "same_emoji_in_this_chat": {
+    "ru": "<b>Эмодзи «$emoji» уже занято другой темой</b>",
+    "en": "<b>Emoji «$emoji» is already taken by another topic</b>"
+  },
+  "message_created_before_bot_connected": {
+    "ru": "<b>Ошибка: сообщение было создано до подключения бота</b>",
+    "en": "<b>Error: the message was created before the bot connected</b>"
   }
 }

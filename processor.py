@@ -2,6 +2,8 @@ import json
 import os
 from abc import ABC, abstractmethod
 import sqlite3
+from typing import Type
+from string import Template
 
 import telebot.types
 
@@ -68,16 +70,45 @@ class DbData:
             self.connect.commit()
             return result
         except sqlite3.IntegrityError as err:
+            if err.__str__() not in ('UNIQUE constraint failed: chat.chat_id, chat.topic',
+                                     'UNIQUE constraint failed: user.user_id',):
+                print(f'\033[31mERROR:\033[0m {err.__str__()}')
+                return None
             self.connect.rollback()
             return f'\033[31mERROR:\033[0m {err.__str__()}'
 
+    def add_message(self, message: telebot.types.Message):
+        message_id = message.message_id
+        chat_id = message.chat.id
+        topic = message.message_thread_id
+        user_id = message.from_user.id
+        text = message.text
+
+        if not topic:
+            topic = 0
+
+        self.execute("""
+            INSERT INTO message 
+            (message_id, chat, user, text)
+            VALUES 
+            (?, (SELECT id FROM chat WHERE chat_id = ? and topic = ?), (SELECT id FROM user WHERE user_id = ?), ?);
+        """, (message_id, chat_id, topic, user_id, text))
+
     def add_bot_message(self, message: telebot.types.Message):
+        message_id = message.message_id
+        chat_id = message.chat.id
+        topic = message.message_thread_id
+        text = message.text
+
+        if not topic:
+            topic = 0
+
         self.execute("""
             INSERT INTO bot_message 
-            (message_id, chat_id, text)
+            (message_id, chat, text)
             VALUES 
-            (?, (SELECT id FROM chat WHERE chat_id = ?), ?);
-        """, (message.message_id, message.chat.id, message.text))
+            (?, (SELECT id FROM chat WHERE chat_id = ? and topic = ?), ?);
+        """, (message_id, chat_id, topic, text))
 
     def add_chat(self, message: telebot.types.Message):
         chat_id = message.chat.id
@@ -109,6 +140,12 @@ class DbData:
         if not res:
             print(f'\033[32mAdd new user (\033[1;36m{user_id}, {username}\033[32m)\033[0m')
 
+    def set_emoji(self, emoji: str, chat_id: int, topic: str) -> None:
+        res = self.execute("""
+            UPDATE chat SET emoji = ? WHERE chat_id = ? and topic = ?;
+        """, (emoji, chat_id, topic))
+        print(res)
+
 
 class Command(ABC):
     def __init__(self, message: telebot.types.Message):
@@ -136,3 +173,120 @@ class Command(ABC):
     @abstractmethod
     def processing(self, sent_message: telebot.types.Message) -> None:
         pass
+
+
+class Reaction:
+    def __init__(self, reaction: telebot.types.MessageReactionUpdated):
+        self.reaction = reaction
+        self.db = DbData()
+
+        self.old = False
+        self.new = False
+        self.old_emoji = None
+        self.new_emoji = None
+
+        if self.reaction.old_reaction:
+            self.old = True
+            self.old_emoji = reaction.old_reaction[0].to_dict()['emoji']
+        if self.reaction.new_reaction:
+            self.new = True
+            self.new_emoji = reaction.new_reaction[0].to_dict()['emoji']
+
+        self.message_id = reaction.message_id
+        self.chat_id = reaction.chat.id
+        self.user_id = reaction.user.id
+        self.topic: int
+        self._define_topic()
+        self.locales_data = LocalesData().data
+
+    def _define_topic(self) -> None:
+        res1 = self.db.execute("""
+            SELECT chat.topic 
+            FROM message 
+            INNER JOIN chat 
+            ON message.chat = chat.id 
+            WHERE message.message_id = ?;
+        """, (self.message_id, ))
+        if res1:
+            self.topic = res1[0]
+            return
+        res2 = self.db.execute("""
+            SELECT chat.topic 
+            FROM bot_message 
+            INNER JOIN chat 
+            ON bot_message.chat = chat.id 
+            WHERE bot_message.message_id = ?;
+        """, (self.message_id, ))
+        if res2:
+            self.topic = res2[0]
+            return
+        return self.register_error_message('message_created_before_bot_connected')
+
+    def define(self):
+        if self.old:
+            return None
+
+        res1 = self.db.execute("""
+            SELECT emoji FROM chat WHERE chat_id = ? and topic = ?;
+        """, (self.chat_id, self.topic))
+
+        if type(res1) is tuple:
+
+            if not res1[0]:
+                return None
+
+            else:
+                res2 = self.db.execute("""
+                    SELECT * FROM chat WHERE chat_id = ? and emoji = ?;
+                """, (self.chat_id, self.new_emoji))
+
+                if res1[0].isnumeric() and res2:
+                    return self.register_error_message('same_emoji_in_this_chat')
+
+                elif res1[0].isnumeric() and not res2:
+                    return self.register_topic
+
+                elif not res1[0].isnumeric() and res2:
+                    return self.resend_message
+
+                else:
+                    raise Exception('Так не должно быть')
+
+        else:
+            raise Exception('Так не должно быть')
+
+    def register_topic(self) -> MessageToSend:
+
+        self.db.set_emoji(self.new_emoji, self.chat_id, self.topic)
+
+        new_message = MessageToSend()
+
+        new_message.chat_id = self.chat_id
+        new_message.text = Template(self.locales_data['register_topic']['ru']).substitute(emoji=self.new_emoji)
+        new_message.thread = self.topic
+
+        return new_message
+
+    def resend_message(self) -> MessageToSend:
+        print('resend_message')
+
+    def register_error_message(self, error: str) -> None:
+        if error == 'same_emoji_in_this_chat':
+            new_message = MessageToSend()
+
+            new_message.chat_id = self.chat_id
+            new_message.thread = self.topic
+            new_message.text = (Template(self.locales_data['same_emoji_in_this_chat']['ru'])
+                                .substitute(emoji=self.new_emoji))
+
+            new_message.send()
+        elif error == 'message_created_before_bot_connected':
+            new_message = MessageToSend()
+
+            new_message.chat_id = self.chat_id
+            new_message.thread = self.topic
+            new_message.text = (Template(self.locales_data['message_created_before_bot_connected']['ru'])
+                                .substitute(emoji=self.new_emoji))
+
+            new_message.send()
+

@@ -48,7 +48,7 @@ class CommandTopic(Command):
         """, (self.chat_id, self.topic))
 
         if res and type(res) is tuple:
-            if not res[0].isnumeric():
+            if res[0] and not res[0].isnumeric():
                 new_message.text += f'\n<i>Предыдущий эмодзи:</i> {res[0]}'
 
         return new_message
@@ -60,9 +60,7 @@ class CommandTopic(Command):
         """, (self.chat_id, self.topic))
 
         if type(res) is tuple:
-            self.db.execute("""
-                UPDATE chat SET emoji = ? WHERE chat_id = ? and topic = ?;
-            """, (str(sent_message.message_id), self.chat_id, self.topic))
+            self.db.set_emoji(str(sent_message.message_id), self.chat_id, self.topic)
         else:
             raise Exception('Нет значения с таким chat_id и topic')
 

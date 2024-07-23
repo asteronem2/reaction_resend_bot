@@ -6,8 +6,9 @@ from typing import Type, List
 import telebot
 
 import commands
+import reactions
 from utils import DotEnvData
-from processor import Command, DbData
+from processor import Command, DbData, Reaction
 
 EnvData = DotEnvData()
 
@@ -31,6 +32,7 @@ def message_handler(message: telebot.types.Message):
     db = DbData()
     db.add_chat(message)
     db.add_user(message)
+    db.add_message(message)
 
     if not command:
         return
@@ -43,9 +45,17 @@ def message_handler(message: telebot.types.Message):
 
 
 @bot.message_reaction_handler()
-def reaction_handler(reaction):
-    print(type(reaction))
-    print(reaction.new_reaction)
+def reaction_handler(reaction: telebot.types.MessageReactionUpdated):
+    react = Reaction(reaction)
+
+    command = react.define()
+
+    if not command:
+        return
+
+    new_message = command()
+
+    # new_message.send()
 
 
 if __name__ == '__main__':
