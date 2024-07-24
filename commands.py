@@ -7,10 +7,11 @@ from processor import Command, MessageToSend
 
 class CommandStart(Command):
     def define(self) -> bool:
-        if self.text_low == '/start' and self.chat_type == 'private':
-            return True
-        else:
-            return False
+        if self.message.content_type == 'text':
+            if self.text_low == '/start':
+                if self.chat_type == 'private':
+                    return True
+        return False
 
     def new_message_generate(self) -> MessageToSend:
         new_message = MessageToSend()
@@ -29,10 +30,11 @@ class CommandStart(Command):
 
 class CommandTopic(Command):
     def define(self) -> bool:
-        if self.text_low == '/topic' and self.chat_type == 'supergroup':
-            return True
-        else:
-            return False
+        if self.message.content_type == 'text':
+            if self.text_low == '/topic':
+                if self.chat_type == 'supergroup':
+                    return True
+        return False
 
     def new_message_generate(self) -> MessageToSend:
         new_message = MessageToSend()
@@ -67,10 +69,11 @@ class CommandTopic(Command):
 
 class CommandLang(Command):
     def define(self) -> bool:
-        if self.text_low == '/lang' and self.chat_type == 'private':
-            return True
-        else:
-            return False
+        if self.message.content_type == 'text':
+            if self.text_low == '/lang':
+                if self.chat_type == 'private':
+                    return True
+        return False
 
     def new_message_generate(self) -> MessageToSend:
         new_message = MessageToSend()
