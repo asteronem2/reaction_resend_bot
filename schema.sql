@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS chat (
     chat_id BIGINT NOT NULL,
     topic INTEGER NOT NULL,
     emoji TEXT,
+    emoji_to_edit TEXT,
     UNIQUE (chat_id, topic)
 );
 

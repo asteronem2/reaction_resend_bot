@@ -27,6 +27,10 @@ def command_define(message) -> Command:
 
 @bot.message_handler(content_types=['text', 'photo'])
 def message_handler(message: telebot.types.Message):
+    print(message)
+    print(message.reply_to_message)
+    return
+
     command = command_define(message)
 
     db = DbData()
@@ -67,7 +71,8 @@ def reaction_handler(reaction: telebot.types.MessageReactionUpdated):
 
     new_message = command()
 
-    new_message.send()
+    if new_message:
+        new_message.send()
 
 
 if __name__ == '__main__':

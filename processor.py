@@ -172,8 +172,13 @@ class DbData:
             print(f'\033[32mAdd new user (\033[1;36m{user_id}, {username}\033[32m)\033[0m')
 
     def set_emoji(self, emoji: str, chat_id: int, topic: str) -> None:
-        res = self.execute("""
+        self.execute("""
             UPDATE chat SET emoji = ? WHERE chat_id = ? and topic = ?;
+        """, (emoji, chat_id, topic))
+
+    def set_emoji_to_edit(self, emoji: str, chat_id: int, topic: str) -> None:
+        self.execute("""
+            UPDATE chat SET emoji_to_edit = ? WHERE chat_id = ? and topic = ?;
         """, (emoji, chat_id, topic))
 
 
@@ -266,13 +271,43 @@ class Reaction:
                 """, (self.chat_id, self.topic))
             if res2:
                 if res2[0].isnumeric():
-                    return self.register_topic
-                else:
-                    return None
-            else:
-                return None
+                    if int(res2[0]) == self.message_id:
+                        return self.register_emoji
 
-    def register_topic(self) -> MessageToSend:
+        res3 = self.db.execute("""
+                     SELECT emoji_to_edit FROM chat WHERE chat_id = ? and topic = ?;
+                 """, (self.chat_id, self.topic))
+
+        if res3 and res3[0]:
+            if res3[0].isnumeric():
+                if int(res3[0]) == self.message_id:
+                    return self.register_emoji_to_edit
+            elif res3[0] == self.new_emoji:
+                res4 = self.db.execute("""
+                    SELECT reply_to_message_id FROM message WHERE message_id = ?;
+                """, (self.message_id, ))
+
+                if res4[0]:
+                    res5 = self.db.execute("""
+                         SELECT user FROM message WHERE message_id = ?;
+                    """, (res4[0], ))
+                    if res5[0] == 1:
+                        return self.edit_message
+
+        return None
+
+    def register_emoji(self) -> MessageToSend:
+
+        res = self.db.execute("""
+            SELECT * FROM chat WHERE emoji_to_edit = ?;
+        """, (self.new_emoji, ))
+        res2 = self.db.execute("""
+            SELECT * FROM chat WHERE emoji = ?;
+        """, (self.new_emoji, ))
+
+        if res or res2:
+            self.register_error_message('emoji_already_taker')
+            return None
 
         self.db.set_emoji(self.new_emoji, self.chat_id, self.topic)
 
@@ -280,6 +315,29 @@ class Reaction:
 
         new_message.chat_id = self.chat_id
         new_message.text = Template(self.locales_data['register_topic']['ru']).substitute(emoji=self.new_emoji)
+        new_message.thread = self.topic
+
+        return new_message
+
+    def register_emoji_to_edit(self) -> MessageToSend:
+
+        res = self.db.execute("""
+            SELECT * FROM chat WHERE emoji_to_edit = ?;
+        """, (self.new_emoji, ))
+        res2 = self.db.execute("""
+            SELECT * FROM chat WHERE emoji = ?;
+        """, (self.new_emoji, ))
+
+        if res or res2:
+            self.register_error_message('emoji_already_taker')
+            return None
+
+        self.db.set_emoji_to_edit(self.new_emoji, self.chat_id, self.topic)
+
+        new_message = MessageToSend()
+
+        new_message.chat_id = self.chat_id
+        new_message.text = Template(self.locales_data['register_emoji_to_edit']['ru']).substitute(emoji=self.new_emoji)
         new_message.thread = self.topic
 
         return new_message
@@ -319,23 +377,24 @@ class Reaction:
 
         return new_message
 
+    def edit_message(self, message_to_edit_id, message_to_edit_text) -> MessageToSend:
+        pass
+
     def register_error_message(self, error: str) -> None:
-        if error == 'same_emoji_in_this_chat':
+        if error == 'emoji_already_taker':
             new_message = MessageToSend()
 
             new_message.chat_id = self.chat_id
             new_message.thread = self.topic
-            new_message.text = (Template(self.locales_data['same_emoji_in_this_chat']['ru'])
-                                .substitute(emoji=self.new_emoji))
+            new_message.text = '<b>Данный эмодзи уже занят</b>'
 
             new_message.send()
-        elif error == 'message_created_before_bot_connected':
+        else:
             new_message = MessageToSend()
 
             new_message.chat_id = self.chat_id
             new_message.thread = self.topic
-            new_message.text = (Template(self.locales_data['message_created_before_bot_connected']['ru'])
-                                .substitute(emoji=self.new_emoji))
+            new_message.text = '<b>Ошибка какая-то</b>'
 
             new_message.send()
 
