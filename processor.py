@@ -19,15 +19,26 @@ class MessageToSend:
     thread: int
     markup: telebot.types.InlineKeyboardMarkup = None
     reply_to_message_id = None
+    media_id = None
 
     def send(self) -> telebot.types.Message:
-        sent_message = self.bot.send_message(chat_id=self.chat_id,
-                                             text=self.text,
-                                             message_thread_id=self.thread,
-                                             reply_markup=self.markup,
-                                             parse_mode='html',
-                                             reply_to_message_id=self.reply_to_message_id,
-                                             )
+        if not self.media_id:
+            sent_message = self.bot.send_message(chat_id=self.chat_id,
+                                                 text=self.text,
+                                                 message_thread_id=self.thread,
+                                                 reply_markup=self.markup,
+                                                 parse_mode='html',
+                                                 reply_to_message_id=self.reply_to_message_id,
+                                                 )
+        else:
+            sent_message = self.bot.send_photo(chat_id=self.chat_id,
+                                               photo=self.media_id,
+                                               caption=self.text,
+                                               message_thread_id=self.thread,
+                                               reply_markup=self.markup,
+                                               parse_mode='html',
+                                               reply_to_message_id=self.reply_to_message_id,
+                                               )
 
         db = DbData()
         db.add_message(sent_message)
@@ -97,9 +108,17 @@ class DbData:
         message_id = message.message_id
         chat_id = message.chat.id
         user_id = message.from_user.id
-        text = message.text
+        content_type = message.content_type
+        media_id = None
+        text = None
         topic = None
         reply_to_message_id = None
+
+        if content_type == 'text':
+            text = message.text
+        elif content_type == 'photo':
+            text = message.caption
+            media_id = message.json['photo'][-1]['file_id']
 
         is_topic = message.is_topic_message
 
@@ -117,10 +136,10 @@ class DbData:
 
         self.execute("""
             INSERT INTO message 
-            (message_id, chat, user, text, reply_to_message_id)
+            (message_id, chat, user, text, reply_to_message_id, media_id, content_type)
             VALUES 
-            (?, (SELECT id FROM chat WHERE chat_id = ? and topic = ?), (SELECT id FROM user WHERE user_id = ?), ?, ?);
-        """, (message_id, chat_id, topic, user_id, text, reply_to_message_id))
+            (?, (SELECT id FROM chat WHERE chat_id = ? and topic = ?), (SELECT id FROM user WHERE user_id = ?), ?, ?, ?, ?);
+        """, (message_id, chat_id, topic, user_id, text, reply_to_message_id, media_id, content_type))
 
     def add_chat(self, message: telebot.types.Message):
         chat_id = message.chat.id
@@ -162,7 +181,8 @@ class Command(ABC):
     def __init__(self, message: telebot.types.Message):
         self.message = message
         self.text = message.text
-        self.text_low = message.text.lower()
+        if self.text:
+            self.text_low = message.text.lower()
         self.chat_id = message.chat.id
         self.chat_type = message.chat.type
         self.topic = message.message_thread_id
@@ -203,8 +223,16 @@ class Reaction:
         self.message_id = reaction.message_id
         self.chat_id = reaction.chat.id
         self.user_id = reaction.user.id
+        self.content_type_message = None
+        self._check_content_type_message()
         self.topic = None
         self._define_topic()
+
+    def _check_content_type_message(self):
+        res = self.db.execute("""
+            SELECT content_type FROM message WHERE message_id = ?;
+        """, (self.message_id,))
+        self.content_type_message = res[0]
 
     def _define_topic(self) -> None:
         res = self.db.execute("""
@@ -213,7 +241,7 @@ class Reaction:
             INNER JOIN chat 
             ON message.chat = chat.id 
             WHERE message.message_id = ?;
-        """, (self.message_id, ))
+        """, (self.message_id,))
         if res:
             self.topic = res[0]
             return
@@ -262,11 +290,11 @@ class Reaction:
         """, (self.chat_id, self.new_emoji))[0]
 
         find_text_res = self.db.execute("""
-            SELECT text FROM message WHERE message_id = ?;
-        """, (self.message_id, ))
+            SELECT text, media_id FROM message WHERE message_id = ?;
+        """, (self.message_id,))
 
         try:
-            text = find_text_res[0]
+            text, media_id = find_text_res
         except:
             raise Exception("Какая-то ошибка")
 
@@ -274,7 +302,7 @@ class Reaction:
 
         res = self.db.execute("""
             SELECT reply_to_message_id FROM message WHERE message_id = ?;
-        """, (self.message_id, ))
+        """, (self.message_id,))
 
         if type(res[0]) is int:
             reply_to_message_id = self._send_chain_message(res[0], topic)
@@ -285,8 +313,9 @@ class Reaction:
 
         new_message.chat_id = self.chat_id
         new_message.thread = topic
-        new_message.text = text
         new_message.reply_to_message_id = reply_to_message_id
+        new_message.text = text
+        new_message.media_id = media_id
 
         return new_message
 
@@ -317,8 +346,8 @@ class Reaction:
 
         while replied_id:
             res = self.db.execute("""
-                SELECT reply_to_message_id, message_id, text FROM message WHERE message_id = ?;
-            """, (replied_id, ))
+                SELECT reply_to_message_id, message_id, text, media_id FROM message WHERE message_id = ?;
+            """, (replied_id,))
 
             replied_id = res[0]
             if res:
@@ -328,14 +357,14 @@ class Reaction:
 
         reply_to_message_id = None
 
-        for message_id_text in chain_of_message:
+        for message_info in chain_of_message:
             new_message = MessageToSend()
 
-            if message_id_text[1]:
-                new_message.delete_message(self.chat_id, message_id_text[1])
+            new_message.delete_message(self.chat_id, message_info[1])
 
             new_message.reply_to_message_id = reply_to_message_id
-            new_message.text = message_id_text[2]
+            new_message.text = message_info[2]
+            new_message.media_id = message_info[3]
             new_message.thread = topic
             new_message.chat_id = self.chat_id
 
@@ -345,5 +374,3 @@ class Reaction:
             time.sleep(0.5)
 
         return reply_to_message_id
-
-

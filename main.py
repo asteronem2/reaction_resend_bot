@@ -25,7 +25,7 @@ def command_define(message) -> Command:
             return instance
 
 
-@bot.message_handler(content_types=['text', ])
+@bot.message_handler(content_types=['text', 'photo'])
 def message_handler(message: telebot.types.Message):
     command = command_define(message)
 
