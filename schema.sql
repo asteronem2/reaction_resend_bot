@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS message (
     chat REFERENCES chat(id) NOT NULL,
     user REFERENCES user(id) NOT NULL,
     reply_to_message_id INTEGER,
+    content_type TEXT NOT NULL,
     text TEXT,
-    UNIQUE (message_id)
+    media_id TEXT,
+    UNIQUE (message_id, chat)
 );
