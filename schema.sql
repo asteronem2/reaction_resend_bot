@@ -19,15 +19,7 @@ CREATE TABLE IF NOT EXISTS message (
     message_id INTEGER NOT NULL,
     chat REFERENCES chat(id) NOT NULL,
     user REFERENCES user(id) NOT NULL,
+    reply_to_message_id INTEGER,
     text TEXT,
     UNIQUE (message_id)
 );
-
-CREATE TABLE IF NOT EXISTS bot_message (
-    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    message_id INTEGER NOT NULL,
-    chat REFERENCES chat(id) NOT NULL,
-    text TEXT,
-    UNIQUE (message_id)
-);
-

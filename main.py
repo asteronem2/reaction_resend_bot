@@ -25,12 +25,24 @@ def command_define(message) -> Command:
             return instance
 
 
-@bot.message_handler()
+@bot.message_handler(content_types=['text', ])
 def message_handler(message: telebot.types.Message):
     command = command_define(message)
 
     db = DbData()
-    db.add_chat(message)
+
+    # Если в чате есть несколько тем, reply_message и message_thread_id переплетаются
+    # Если тема генеральная и сообщение обычное reply_message = None, message_thread_id = None
+    # Если тема генеральная и сообщение replied, reply_message.message_id = replied-message_id, message_thread_id = replied-message_id
+    # Если тема topic и сообщение обычыное reply_message.content_type = "forum_topic_created", reply_message.message_id = topic-create-message_id, message_thread_id = message_thread_id
+    # Если тема topic и сообщение replied, reply_message.content_type = "text", reply_message.message_id = replied-message_id, message_thread_id = message_thread_id
+
+    if message.reply_to_message:
+        if message.reply_to_message.content_type == 'forum_topic_created':
+            db.add_chat(message)
+    else:
+        db.add_chat(message)
+
     db.add_user(message)
     db.add_message(message)
 

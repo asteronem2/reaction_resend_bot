@@ -27,7 +27,7 @@ class MessageToSend:
                                              )
 
         db = DbData()
-        db.add_bot_message(sent_message)
+        db.add_message(sent_message)
 
         return sent_message
 
@@ -59,6 +59,13 @@ class DbData:
             with open(self._schema, 'r') as readfile:
                 schema = readfile.read()
             self.connect.executescript(schema)
+            from main import bot
+            me = bot.get_me()
+            self.execute("""
+                        INSERT INTO user 
+                        (user_id, first_name, username) 
+                        VALUES (?, ?, ?);
+                    """, (me.id, me.first_name, me.username))
 
     def execute(self, query: str, parameters: tuple = (), fetch: str = 'one'):
         try:
@@ -86,35 +93,31 @@ class DbData:
     def add_message(self, message: telebot.types.Message):
         message_id = message.message_id
         chat_id = message.chat.id
-        topic = message.message_thread_id
         user_id = message.from_user.id
         text = message.text
+        topic = None
+        reply_to_message_id = None
+
+        is_topic = message.is_topic_message
+
+        if is_topic:
+            topic = message.message_thread_id
+            if not message.reply_to_message.content_type == 'forum_topic_created':
+                reply_to_message_id = message.reply_to_message.message_id
+        else:
+            topic = None
+            if reply_to_message_id:
+                reply_to_message_id = message.reply_to_message.message_id
 
         if not topic:
             topic = 0
 
         self.execute("""
             INSERT INTO message 
-            (message_id, chat, user, text)
+            (message_id, chat, user, text, reply_to_message_id)
             VALUES 
-            (?, (SELECT id FROM chat WHERE chat_id = ? and topic = ?), (SELECT id FROM user WHERE user_id = ?), ?);
-        """, (message_id, chat_id, topic, user_id, text))
-
-    def add_bot_message(self, message: telebot.types.Message):
-        message_id = message.message_id
-        chat_id = message.chat.id
-        topic = message.message_thread_id
-        text = message.text
-
-        if not topic:
-            topic = 0
-
-        self.execute("""
-            INSERT INTO bot_message 
-            (message_id, chat, text)
-            VALUES 
-            (?, (SELECT id FROM chat WHERE chat_id = ? and topic = ?), ?);
-        """, (message_id, chat_id, topic, text))
+            (?, (SELECT id FROM chat WHERE chat_id = ? and topic = ?), (SELECT id FROM user WHERE user_id = ?), ?, ?);
+        """, (message_id, chat_id, topic, user_id, text, reply_to_message_id))
 
     def add_chat(self, message: telebot.types.Message):
         chat_id = message.chat.id
@@ -184,51 +187,42 @@ class Reaction:
     def __init__(self, reaction: telebot.types.MessageReactionUpdated):
         self.reaction = reaction
         self.db = DbData()
+        self.locales_data = LocalesData().data
 
-        self.old = False
-        self.new = False
         self.old_emoji = None
         self.new_emoji = None
 
         if self.reaction.old_reaction:
-            self.old = True
             self.old_emoji = reaction.old_reaction[0].to_dict()['emoji']
         if self.reaction.new_reaction:
-            self.new = True
             self.new_emoji = reaction.new_reaction[0].to_dict()['emoji']
 
         self.message_id = reaction.message_id
         self.chat_id = reaction.chat.id
         self.user_id = reaction.user.id
-        self.topic: int
+        self.topic = None
         self._define_topic()
-        self.locales_data = LocalesData().data
 
     def _define_topic(self) -> None:
-        res1 = self.db.execute("""
+        res = self.db.execute("""
             SELECT chat.topic 
             FROM message 
             INNER JOIN chat 
             ON message.chat = chat.id 
             WHERE message.message_id = ?;
         """, (self.message_id, ))
-        if res1:
-            self.topic = res1[0]
+        print(self.message_id)
+        print(self.chat_id)
+        print(res)
+        if res:
+            self.topic = res[0]
             return
-        res2 = self.db.execute("""
-            SELECT chat.topic 
-            FROM bot_message 
-            INNER JOIN chat 
-            ON bot_message.chat = chat.id 
-            WHERE bot_message.message_id = ?;
-        """, (self.message_id, ))
-        if res2:
-            self.topic = res2[0]
-            return
+        else:
+            print('Topic not define, wtf')
         return self.register_error_message('message_created_before_bot_connected')
 
     def define(self):
-        if self.old and not self.new:
+        if self.old_emoji and not self.new_emoji:
             return None
 
         # Проверка наличия темы текущего чата с данным emoji
@@ -249,32 +243,6 @@ class Reaction:
                     return None
             else:
                 return None
-
-        # res1 = self.db.execute("""
-        #     SELECT emoji FROM chat WHERE chat_id = ? and topic = ?;
-        # """, (self.chat_id, self.topic))
-        #
-        # if type(res1) is tuple:
-        #
-        #     if not res1[0]:
-        #         return None
-        #
-        #     else:
-        #         # res1 - эмодзи текущей темы чата. res2 - наличие эмодзи в одной из тем данного чата
-        #
-        #         res2 = self.db.execute("""
-        #             SELECT * FROM chat WHERE chat_id = ? and emoji = ?;
-        #         """, (self.chat_id, self.new_emoji))
-        #
-        #         if res2:
-        #             return self.resend_message
-        #         else:
-        #             if res1[0].isnumeric():
-        #                 return self.register_topic
-        #             else:
-        #                 return None
-        # else:
-        #     raise Exception('Так не должно быть')
 
     def register_topic(self) -> MessageToSend:
 
@@ -297,10 +265,6 @@ class Reaction:
             SELECT text FROM message WHERE message_id = ?;
         """, (self.message_id, ))
 
-        if not find_text_res:
-            find_text_res = self.db.execute("""
-                        SELECT text FROM bot_message WHERE message_id = ?;
-                    """, (self.message_id,))
         try:
             text = find_text_res[0]
         except:
