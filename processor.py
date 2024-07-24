@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from abc import ABC, abstractmethod
 import sqlite3
 from typing import Type
@@ -17,6 +18,7 @@ class MessageToSend:
     chat_id: str
     thread: int
     markup: telebot.types.InlineKeyboardMarkup = None
+    reply_to_message_id = None
 
     def send(self) -> telebot.types.Message:
         sent_message = self.bot.send_message(chat_id=self.chat_id,
@@ -24,6 +26,7 @@ class MessageToSend:
                                              message_thread_id=self.thread,
                                              reply_markup=self.markup,
                                              parse_mode='html',
+                                             reply_to_message_id=self.reply_to_message_id,
                                              )
 
         db = DbData()
@@ -106,7 +109,7 @@ class DbData:
                 reply_to_message_id = message.reply_to_message.message_id
         else:
             topic = None
-            if reply_to_message_id:
+            if message.reply_to_message:
                 reply_to_message_id = message.reply_to_message.message_id
 
         if not topic:
@@ -211,9 +214,6 @@ class Reaction:
             ON message.chat = chat.id 
             WHERE message.message_id = ?;
         """, (self.message_id, ))
-        print(self.message_id)
-        print(self.chat_id)
-        print(res)
         if res:
             self.topic = res[0]
             return
@@ -270,11 +270,23 @@ class Reaction:
         except:
             raise Exception("Какая-то ошибка")
 
+        reply_to_message_id = None
+
+        res = self.db.execute("""
+            SELECT reply_to_message_id FROM message WHERE message_id = ?;
+        """, (self.message_id, ))
+
+        if type(res[0]) is int:
+            reply_to_message_id = self._send_chain_message(res[0], topic)
+
+        MessageToSend().delete_message(self.chat_id, self.message_id)
+
         new_message = MessageToSend()
 
         new_message.chat_id = self.chat_id
         new_message.thread = topic
         new_message.text = text
+        new_message.reply_to_message_id = reply_to_message_id
 
         return new_message
 
@@ -297,4 +309,41 @@ class Reaction:
                                 .substitute(emoji=self.new_emoji))
 
             new_message.send()
+
+    def _send_chain_message(self, first_replied: int, topic) -> int:
+        chain_of_message = []
+
+        replied_id = first_replied
+
+        while replied_id:
+            res = self.db.execute("""
+                SELECT reply_to_message_id, message_id, text FROM message WHERE message_id = ?;
+            """, (replied_id, ))
+
+            replied_id = res[0]
+            if res:
+                chain_of_message.append(res)
+
+        chain_of_message = chain_of_message[::-1]
+
+        reply_to_message_id = None
+
+        for message_id_text in chain_of_message:
+            new_message = MessageToSend()
+
+            if message_id_text[1]:
+                new_message.delete_message(self.chat_id, message_id_text[1])
+
+            new_message.reply_to_message_id = reply_to_message_id
+            new_message.text = message_id_text[2]
+            new_message.thread = topic
+            new_message.chat_id = self.chat_id
+
+            res = new_message.send()
+            reply_to_message_id = res.message_id
+
+            time.sleep(0.5)
+
+        return reply_to_message_id
+
 
