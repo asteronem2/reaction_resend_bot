@@ -15,8 +15,16 @@
     "ru": "<b>Регистрация темы:</b>\nДля регистрации этой темы, поставь эмодзи на данное сообщение и в дальнейшем это эмодзи будет всегда переносить сообщения в данную тему",
     "en": "To register this topic, put an emoji on this message and in the future this emoji will always transfer messages to this topic"
   },
+  "/edit": {
+    "ru": "<b>Регистрация емодзи для редакции:</b>\nДля регистрации эмодзи, поставь эмодзи на данное сообщение и в дальнейшем это эмодзи будет менять сообщения",
+    "en": "To register this topic, put an emoji on this message and in the future this emoji will always transfer messages to this topic"
+  },
   "register_topic": {
     "ru": "<b>Теперь эмодзи этой темы - $emoji</b>",
+    "en": "<b>Now emoji this topic - $emoji</b>"
+  },
+  "register_emoji_to_edit": {
+    "ru": "<b>Теперь редактирующий эмодзи темы - $emoji</b>",
     "en": "<b>Now emoji this topic - $emoji</b>"
   },
   "same_emoji_in_this_chat": {
