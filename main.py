@@ -27,10 +27,6 @@ def command_define(message) -> Command:
 
 @bot.message_handler(content_types=['text', 'photo'])
 def message_handler(message: telebot.types.Message):
-    print(message)
-    print(message.reply_to_message)
-    return
-
     command = command_define(message)
 
     db = DbData()

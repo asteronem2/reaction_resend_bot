@@ -24,5 +24,7 @@ CREATE TABLE IF NOT EXISTS message (
     content_type TEXT NOT NULL,
     text TEXT,
     media_id TEXT,
+    quote_start INTEGER,
+    quote_end INTEGER,
     UNIQUE (message_id, chat)
 );

@@ -20,6 +20,7 @@ class MessageToSend:
     markup: telebot.types.InlineKeyboardMarkup = None
     reply_to_message_id = None
     media_id = None
+    message_id: int
 
     def send(self) -> telebot.types.Message:
         if not self.media_id:
@@ -45,9 +46,33 @@ class MessageToSend:
 
         return sent_message
 
-    def delete_message(self, chat_id, message_id):
+    def delete_message(self):
         try:
-            self.bot.delete_message(chat_id, message_id)
+            self.bot.delete_message(self.chat_id, self.message_id)
+        except Exception as err:
+            print(f'\033[31mERROR:\033[0m {err.__str__()}')
+
+    def edit_message(self):
+        try:
+
+            dots = '.'
+            for i in range(4):
+                self.bot.edit_message_text(text=f'Изменяем{dots}',
+                                           chat_id=self.chat_id,
+                                           message_id=self.message_id
+                                           )
+                if dots == '.':
+                    dots = '..'
+                elif dots == '..':
+                    dots = '...'
+                elif dots == '...':
+                    dots = '.'
+                time.sleep(0.25)
+
+            self.bot.edit_message_text(text=self.text,
+                                       chat_id=self.chat_id,
+                                       message_id=self.message_id
+                                       )
         except Exception as err:
             print(f'\033[31mERROR:\033[0m {err.__str__()}')
 
@@ -113,6 +138,13 @@ class DbData:
         text = None
         topic = None
         reply_to_message_id = None
+        quote_start = None
+        quote_end = None
+
+        if message.quote:
+            quote_start = message.quote.position
+            text_len = len(message.quote.text)
+            quote_end = quote_start + text_len
 
         if content_type == 'text':
             text = message.text
@@ -136,10 +168,12 @@ class DbData:
 
         self.execute("""
             INSERT INTO message 
-            (message_id, chat, user, text, reply_to_message_id, media_id, content_type)
+            (message_id, chat, user, text, reply_to_message_id, media_id, content_type, quote_start, quote_end)
             VALUES 
-            (?, (SELECT id FROM chat WHERE chat_id = ? and topic = ?), (SELECT id FROM user WHERE user_id = ?), ?, ?, ?, ?);
-        """, (message_id, chat_id, topic, user_id, text, reply_to_message_id, media_id, content_type))
+            (?, (SELECT id FROM chat WHERE chat_id = ? and topic = ?), (SELECT id FROM user WHERE user_id = ?), ?, ?, ?, 
+            ?, ?, ?);
+        """, (message_id, chat_id, topic, user_id, text, reply_to_message_id, media_id, content_type, quote_start,
+              quote_end))
 
     def add_chat(self, message: telebot.types.Message):
         chat_id = message.chat.id
@@ -285,12 +319,12 @@ class Reaction:
             elif res3[0] == self.new_emoji:
                 res4 = self.db.execute("""
                     SELECT reply_to_message_id FROM message WHERE message_id = ?;
-                """, (self.message_id, ))
+                """, (self.message_id,))
 
                 if res4[0]:
                     res5 = self.db.execute("""
                          SELECT user FROM message WHERE message_id = ?;
-                    """, (res4[0], ))
+                    """, (res4[0],))
                     if res5[0] == 1:
                         return self.edit_message
 
@@ -300,10 +334,10 @@ class Reaction:
 
         res = self.db.execute("""
             SELECT * FROM chat WHERE emoji_to_edit = ?;
-        """, (self.new_emoji, ))
+        """, (self.new_emoji,))
         res2 = self.db.execute("""
             SELECT * FROM chat WHERE emoji = ?;
-        """, (self.new_emoji, ))
+        """, (self.new_emoji,))
 
         if res or res2:
             self.register_error_message('emoji_already_taker')
@@ -323,10 +357,10 @@ class Reaction:
 
         res = self.db.execute("""
             SELECT * FROM chat WHERE emoji_to_edit = ?;
-        """, (self.new_emoji, ))
+        """, (self.new_emoji,))
         res2 = self.db.execute("""
             SELECT * FROM chat WHERE emoji = ?;
-        """, (self.new_emoji, ))
+        """, (self.new_emoji,))
 
         if res or res2:
             self.register_error_message('emoji_already_taker')
@@ -365,7 +399,12 @@ class Reaction:
         if type(res[0]) is int:
             reply_to_message_id = self._send_chain_message(res[0], topic)
 
-        MessageToSend().delete_message(self.chat_id, self.message_id)
+        deleted_message = MessageToSend()
+
+        deleted_message.chat_id = self.chat_id
+        deleted_message.message_id = self.message_id
+
+        deleted_message.delete_message()
 
         new_message = MessageToSend()
 
@@ -377,8 +416,42 @@ class Reaction:
 
         return new_message
 
-    def edit_message(self, message_to_edit_id, message_to_edit_text) -> MessageToSend:
-        pass
+    def edit_message(self) -> None:
+        print("EDIT MESSAGE")
+        res1 = self.db.execute("""
+            SELECT reply_to_message_id, text, quote_start, quote_end FROM message WHERE message_id = ?; 
+        """, (self.message_id,))
+        message_to_edit_id = res1[0]
+        text_to_edit = res1[1]
+        quote_start = res1[2]
+        quote_end = res1[3]
+
+        print(res1)
+
+        if quote_start:
+            res2 = self.db.execute("""
+                SELECT text FROM message WHERE message_id = ?;
+            """, (res1[0], ))
+            initial_text = res2[0]
+            first_part_text = initial_text[:quote_start]
+            second_part_text = text_to_edit
+            third_part_text = initial_text[quote_end:]
+
+            text_to_edit = first_part_text + second_part_text + third_part_text
+
+        deleted_message = MessageToSend()
+        deleted_message.message_id = self.message_id
+        deleted_message.chat_id = self.chat_id
+
+        edited_message = MessageToSend()
+        edited_message.chat_id = self.chat_id
+        edited_message.text = text_to_edit
+        edited_message.message_id = message_to_edit_id
+
+        edited_message.edit_message()
+        deleted_message.delete_message()
+
+        return None
 
     def register_error_message(self, error: str) -> None:
         if error == 'emoji_already_taker':
@@ -417,9 +490,13 @@ class Reaction:
         reply_to_message_id = None
 
         for message_info in chain_of_message:
-            new_message = MessageToSend()
 
-            new_message.delete_message(self.chat_id, message_info[1])
+            deleted_message = MessageToSend()
+            deleted_message.message_id = message_info[1]
+            deleted_message.chat_id = self.chat_id
+            deleted_message.delete_message()
+
+            new_message = MessageToSend()
 
             new_message.reply_to_message_id = reply_to_message_id
             new_message.text = message_info[2]
