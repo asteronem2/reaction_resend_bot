@@ -30,6 +30,7 @@ class MessageToSend:
                                                  reply_markup=self.markup,
                                                  parse_mode='html',
                                                  reply_to_message_id=self.reply_to_message_id,
+                                                 disable_notification=True,
                                                  )
         else:
             sent_message = self.bot.send_photo(chat_id=self.chat_id,
@@ -39,6 +40,7 @@ class MessageToSend:
                                                reply_markup=self.markup,
                                                parse_mode='html',
                                                reply_to_message_id=self.reply_to_message_id,
+                                               disable_notification=True,
                                                )
 
         db = DbData()
@@ -59,7 +61,7 @@ class MessageToSend:
             for i in range(4):
                 self.bot.edit_message_text(text=f'Изменяем{dots}',
                                            chat_id=self.chat_id,
-                                           message_id=self.message_id
+                                           message_id=self.message_id,
                                            )
                 if dots == '.':
                     dots = '..'
@@ -73,6 +75,43 @@ class MessageToSend:
                                        chat_id=self.chat_id,
                                        message_id=self.message_id
                                        )
+        except Exception as err:
+            print(f'\033[31mERROR:\033[0m {err.__str__()}')
+
+    def edit_photo(self):
+        try:
+
+            dots = '.'
+            for i in range(4):
+                photo_object = telebot.types.InputMediaPhoto(
+                    media=self.media_id,
+                    caption=f'Изменяем{dots}',
+                    parse_mode='html',
+                )
+
+                self.bot.edit_message_media(media=photo_object,
+                                            chat_id=self.chat_id,
+                                            message_id=self.message_id
+                                            )
+                if dots == '.':
+                    dots = '..'
+                elif dots == '..':
+                    dots = '...'
+                elif dots == '...':
+                    dots = '.'
+                time.sleep(0.25)
+
+            photo_object = telebot.types.InputMediaPhoto(
+                media=self.media_id,
+                caption=self.text,
+                parse_mode='html',
+            )
+
+            self.bot.edit_message_media(media=photo_object,
+                                        chat_id=self.chat_id,
+                                        message_id=self.message_id
+                                        )
+
         except Exception as err:
             print(f'\033[31mERROR:\033[0m {err.__str__()}')
 
@@ -289,6 +328,11 @@ class Reaction:
         return self.register_error_message('message_created_before_bot_connected')
 
     def define(self):
+        from main import EnvData
+
+        if self.reaction.user.username not in EnvData.OWNER_LIST:
+            return None
+
         if self.old_emoji and not self.new_emoji:
             return None
 
@@ -419,19 +463,18 @@ class Reaction:
     def edit_message(self) -> None:
         print("EDIT MESSAGE")
         res1 = self.db.execute("""
-            SELECT reply_to_message_id, text, quote_start, quote_end FROM message WHERE message_id = ?; 
+            SELECT reply_to_message_id, text, quote_start, quote_end, media_id FROM message WHERE message_id = ?; 
         """, (self.message_id,))
         message_to_edit_id = res1[0]
         text_to_edit = res1[1]
         quote_start = res1[2]
         quote_end = res1[3]
 
-        print(res1)
+        res2 = self.db.execute("""
+            SELECT text, media_id FROM message WHERE message_id = ?;
+        """, (res1[0],))
 
         if quote_start:
-            res2 = self.db.execute("""
-                SELECT text FROM message WHERE message_id = ?;
-            """, (res1[0], ))
             initial_text = res2[0]
             first_part_text = initial_text[:quote_start]
             second_part_text = text_to_edit
@@ -442,6 +485,48 @@ class Reaction:
         deleted_message = MessageToSend()
         deleted_message.message_id = self.message_id
         deleted_message.chat_id = self.chat_id
+
+        # Если редактируемое сообщение с фото
+        if res2[1]:
+            if res1[4]:
+                # Если редактирующее сообщение с фото и текстом
+                if res1[1]:
+                    edited_photo = MessageToSend()
+
+                    edited_photo.media_id = res1[4]
+                    edited_photo.text = text_to_edit
+                    edited_photo.chat_id = self.chat_id
+                    edited_photo.message_id = message_to_edit_id
+
+                    edited_photo.edit_photo()
+                    deleted_message.delete_message()
+                    return None
+
+                # Если редактирующее сообщение с фото и без текста
+                else:
+                    edited_photo = MessageToSend()
+
+                    edited_photo.media_id = res1[4]
+                    edited_photo.text = res2[0]
+                    edited_photo.chat_id = self.chat_id
+                    edited_photo.message_id = message_to_edit_id
+
+                    edited_photo.edit_photo()
+                    deleted_message.delete_message()
+                    return None
+
+            # Если редактирующее сообщение без фото
+            else:
+                edited_photo = MessageToSend()
+
+                edited_photo.media_id = res2[1]
+                edited_photo.text = text_to_edit
+                edited_photo.chat_id = self.chat_id
+                edited_photo.message_id = message_to_edit_id
+
+                edited_photo.edit_photo()
+                deleted_message.delete_message()
+                return None
 
         edited_message = MessageToSend()
         edited_message.chat_id = self.chat_id
@@ -490,7 +575,6 @@ class Reaction:
         reply_to_message_id = None
 
         for message_info in chain_of_message:
-
             deleted_message = MessageToSend()
             deleted_message.message_id = message_info[1]
             deleted_message.chat_id = self.chat_id

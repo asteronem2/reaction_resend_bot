@@ -4,6 +4,7 @@ import time
 from typing import Type, List
 
 import telebot
+from telebot.types import InputMediaPhoto
 
 import commands
 import reactions
@@ -73,4 +74,3 @@ def reaction_handler(reaction: telebot.types.MessageReactionUpdated):
 
 if __name__ == '__main__':
     bot.infinity_polling(timeout=100, allowed_updates=['message', 'message_reaction'])
-
