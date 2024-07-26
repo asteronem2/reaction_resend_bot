@@ -330,7 +330,7 @@ class Reaction:
     def define(self):
         from main import EnvData
 
-        if self.reaction.user.username not in EnvData.OWNER_LIST:
+        if self.reaction.user.username not in EnvData.ADMIN_LISt:
             return None
 
         if self.old_emoji and not self.new_emoji:

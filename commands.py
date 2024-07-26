@@ -2,15 +2,17 @@ from string import Template
 
 import telebot
 
+import main
 from processor import Command, MessageToSend
 
 
 class CommandStart(Command):
     def define(self) -> bool:
-        if self.message.content_type == 'text':
-            if self.text_low == '/start':
-                if self.chat_type == 'private':
-                    return True
+        if self.message.from_user.username in main.EnvData.ADMIN_LIST:
+            if self.message.content_type == 'text':
+                if self.text_low == '/start':
+                    if self.chat_type == 'private':
+                        return True
         return False
 
     def new_message_generate(self) -> MessageToSend:
@@ -30,10 +32,11 @@ class CommandStart(Command):
 
 class CommandTopic(Command):
     def define(self) -> bool:
-        if self.message.content_type == 'text':
-            if self.text_low == '/topic':
-                if self.chat_type == 'supergroup':
-                    return True
+        if self.message.from_user.username in main.EnvData.ADMIN_LIST:
+            if self.message.content_type == 'text':
+                if self.text_low == '/topic':
+                    if self.chat_type == 'supergroup':
+                        return True
         return False
 
     def new_message_generate(self) -> MessageToSend:
@@ -69,10 +72,11 @@ class CommandTopic(Command):
 
 class CommandEdit(Command):
     def define(self) -> bool:
-        if self.message.content_type == 'text':
-            if self.text_low == '/edit':
-                if self.chat_type == 'supergroup':
-                    return True
+        if self.message.from_user.username in main.EnvData.ADMIN_LIST:
+            if self.message.content_type == 'text':
+                if self.text_low == '/edit':
+                    if self.chat_type == 'supergroup':
+                        return True
         return False
 
     def new_message_generate(self) -> MessageToSend:
@@ -108,10 +112,11 @@ class CommandEdit(Command):
 
 class CommandLang(Command):
     def define(self) -> bool:
-        if self.message.content_type == 'text':
-            if self.text_low == '/lang':
-                if self.chat_type == 'private':
-                    return True
+        if self.message.from_user.username in main.EnvData.ADMIN_LIST:
+            if self.message.content_type == 'text':
+                if self.text_low == '/lang':
+                    if self.chat_type == 'private':
+                        return True
         return False
 
     def new_message_generate(self) -> MessageToSend:

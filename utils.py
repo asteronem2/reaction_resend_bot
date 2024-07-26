@@ -11,6 +11,6 @@ class DotEnvData:
         load_dotenv('param.env')
         environ = os.environ
         self.BOT_TOKEN = environ.get('BOT_TOKEN')
-        self.OWNER_LIST = environ.get('OWNER_LIST').split(' ')
+        self.ADMIN_LISt = environ.get('ADMIN_LIST').split(' ')
 
 
