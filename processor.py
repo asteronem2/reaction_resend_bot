@@ -164,17 +164,30 @@ class DbData:
         if os.path.exists(self._dbname):
             self.connect = sqlite3.connect(self._dbname)
         else:
-            self.connect = sqlite3.connect(self._dbname)
-            with open(self._schema, 'r') as readfile:
-                schema = readfile.read()
-            self.connect.executescript(schema)
-            from main import bot
-            me = bot.get_me()
+            self.first_launch()
+
+    def first_launch(self):
+        self.connect = sqlite3.connect(self._dbname)
+        with open(self._schema, 'r') as readfile:
+            schema = readfile.read()
+        self.connect.executescript(schema)
+        res = self.execute("""
+            PRAGMA table_info(message)
+        """, fetch='all')
+        columns = [i[1] for i in res]
+        if 'media_group_id' not in columns:
             self.execute("""
-                        INSERT INTO user 
-                        (user_id, first_name, username) 
-                        VALUES (?, ?, ?);
-                    """, (me.id, me.first_name, me.username))
+                ALTER TABLE message 
+                ADD COLUMN media_group_id TEXT;
+            """)
+
+        from main import bot
+        me = bot.get_me()
+        self.execute("""
+                                INSERT INTO user 
+                                (user_id, first_name, username) 
+                                VALUES (?, ?, ?);
+                            """, (me.id, me.first_name, me.username))
 
     def execute(self, query: str, parameters: tuple = (), fetch: str = 'one'):
         try:

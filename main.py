@@ -75,4 +75,5 @@ def reaction_handler(reaction: telebot.types.MessageReactionUpdated):
 
 
 if __name__ == '__main__':
+    DbData().first_launch()
     bot.infinity_polling(timeout=10000, allowed_updates=['message', 'message_reaction'])
