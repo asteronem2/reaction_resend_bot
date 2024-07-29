@@ -13,6 +13,7 @@ class MessageToSend:
     def __init__(self):
         from main import bot
         self.bot = bot
+        self.db = DbData()
 
     text: str
     chat_id: str
@@ -21,6 +22,7 @@ class MessageToSend:
     reply_to_message_id = None
     media_id = None
     message_id: int
+    media_group_id: str
 
     def send(self) -> telebot.types.Message:
         if not self.media_id:
@@ -33,24 +35,53 @@ class MessageToSend:
                                                  disable_notification=True,
                                                  )
         else:
-            sent_message = self.bot.send_photo(chat_id=self.chat_id,
-                                               photo=self.media_id,
-                                               caption=self.text,
-                                               message_thread_id=self.thread,
-                                               reply_markup=self.markup,
-                                               parse_mode='html',
-                                               reply_to_message_id=self.reply_to_message_id,
-                                               disable_notification=True,
-                                               )
+            if self.media_group_id is None:
+                sent_message = self.bot.send_photo(
+                    chat_id=self.chat_id,
+                    photo=self.media_id,
+                    caption=self.text,
+                    message_thread_id=self.thread,
+                    reply_markup=self.markup,
+                    parse_mode='html',
+                    reply_to_message_id=self.reply_to_message_id,
+                    disable_notification=True,
+                )
+            else:
+                list_photo_object = []
+                res = self.db.execute("""
+                    SELECT text, media_id FROM message WHERE media_group_id = ?;
+                """, (self.media_group_id, ), fetch='all')
+                for text_media in res:
+                    obj = telebot.types.InputMediaPhoto(
+                        media=text_media[1],
+                        caption=text_media[0],
+                        parse_mode='html'
+                    )
+                    list_photo_object.append(obj)
+                sent_message = self.bot.send_media_group(
+                    chat_id=self.chat_id,
+                    media=list_photo_object,
+                    message_thread_id=self.thread,
+                    reply_to_message_id=self.reply_to_message_id,
+                    disable_notification=True,
+                )
+                self.db.add_message(sent_message[1])
+                sent_message = sent_message[0]
 
-        db = DbData()
-        db.add_message(sent_message)
+        self.db.add_message(sent_message)
 
         return sent_message
 
     def delete_message(self):
         try:
-            self.bot.delete_message(self.chat_id, self.message_id)
+            if self.media_group_id is None:
+                self.bot.delete_message(self.chat_id, self.message_id)
+            else:
+                res = self.db.execute("""
+                    SELECT message_id FROM message WHERE media_group_id = ?;
+                """, (self.media_group_id, ), fetch='all')
+                for message_id in res:
+                    self.bot.delete_message(self.chat_id, message_id[0])
         except Exception as err:
             print(f'\033[31mERROR:\033[0m {err.__str__()}')
 
@@ -179,6 +210,7 @@ class DbData:
         reply_to_message_id = None
         quote_start = None
         quote_end = None
+        media_group_id = message.media_group_id
 
         if message.quote:
             quote_start = message.quote.position
@@ -207,12 +239,12 @@ class DbData:
 
         self.execute("""
             INSERT INTO message 
-            (message_id, chat, user, text, reply_to_message_id, media_id, content_type, quote_start, quote_end)
+            (message_id, chat, user, text, reply_to_message_id, media_id, content_type, quote_start, quote_end, media_group_id)
             VALUES 
             (?, (SELECT id FROM chat WHERE chat_id = ? and topic = ?), (SELECT id FROM user WHERE user_id = ?), ?, ?, ?, 
-            ?, ?, ?);
+            ?, ?, ?, ?);
         """, (message_id, chat_id, topic, user_id, text, reply_to_message_id, media_id, content_type, quote_start,
-              quote_end))
+              quote_end, media_group_id))
 
     def add_chat(self, message: telebot.types.Message):
         chat_id = message.chat.id
@@ -330,7 +362,7 @@ class Reaction:
     def define(self):
         from main import EnvData
 
-        if self.reaction.user.username not in EnvData.ADMIN_LISt:
+        if self.reaction.user.username not in EnvData.ADMIN_LIST:
             return None
 
         if self.old_emoji and not self.new_emoji:
@@ -426,11 +458,11 @@ class Reaction:
         """, (self.chat_id, self.new_emoji))[0]
 
         find_text_res = self.db.execute("""
-            SELECT text, media_id FROM message WHERE message_id = ?;
+            SELECT text, media_id, media_group_id FROM message WHERE message_id = ?;
         """, (self.message_id,))
 
         try:
-            text, media_id = find_text_res
+            text, media_id, media_group_id = find_text_res
         except:
             raise Exception("Какая-то ошибка")
 
@@ -447,6 +479,7 @@ class Reaction:
 
         deleted_message.chat_id = self.chat_id
         deleted_message.message_id = self.message_id
+        deleted_message.media_group_id = media_group_id
 
         deleted_message.delete_message()
 
@@ -457,6 +490,7 @@ class Reaction:
         new_message.reply_to_message_id = reply_to_message_id
         new_message.text = text
         new_message.media_id = media_id
+        new_message.media_group_id = media_group_id
 
         return new_message
 
@@ -563,7 +597,7 @@ class Reaction:
 
         while replied_id:
             res = self.db.execute("""
-                SELECT reply_to_message_id, message_id, text, media_id FROM message WHERE message_id = ?;
+                SELECT reply_to_message_id, message_id, text, media_id, media_group_id FROM message WHERE message_id = ?;
             """, (replied_id,))
 
             replied_id = res[0]
@@ -571,26 +605,33 @@ class Reaction:
                 chain_of_message.append(res)
 
         chain_of_message = chain_of_message[::-1]
+        print(chain_of_message)
 
         reply_to_message_id = None
 
         for message_info in chain_of_message:
-            deleted_message = MessageToSend()
-            deleted_message.message_id = message_info[1]
-            deleted_message.chat_id = self.chat_id
-            deleted_message.delete_message()
+            try:
+                deleted_message = MessageToSend()
+                deleted_message.message_id = message_info[1]
+                deleted_message.chat_id = self.chat_id
+                deleted_message.media_group_id = message_info[4]
+                deleted_message.delete_message()
 
-            new_message = MessageToSend()
+                new_message = MessageToSend()
 
-            new_message.reply_to_message_id = reply_to_message_id
-            new_message.text = message_info[2]
-            new_message.media_id = message_info[3]
-            new_message.thread = topic
-            new_message.chat_id = self.chat_id
+                new_message.reply_to_message_id = reply_to_message_id
+                new_message.text = message_info[2]
+                new_message.media_id = message_info[3]
+                new_message.media_group_id = message_info[4]
+                new_message.thread = topic
+                new_message.chat_id = self.chat_id
 
-            res = new_message.send()
-            reply_to_message_id = res.message_id
+                res = new_message.send()
+                reply_to_message_id = res.message_id
 
-            time.sleep(0.5)
+                time.sleep(0.5)
+            except Exception as err:
+                print(err.__str__())
+
 
         return reply_to_message_id

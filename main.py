@@ -16,7 +16,7 @@ EnvData = DotEnvData()
 bot = telebot.TeleBot(token=EnvData.BOT_TOKEN)
 
 all_command_cls: List[Type[Command]] = [i[1] for i in inspect.getmembers(commands, inspect.isclass)
-                                        if i[1].__dict__['__module__'] == 'commands']
+                                            if i[1].__dict__['__module__'] == 'commands']
 
 
 def command_define(message) -> Command:
