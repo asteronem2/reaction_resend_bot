@@ -22,7 +22,7 @@ class MessageToSend:
     reply_to_message_id = None
     media_id = None
     message_id: int
-    media_group_id: str
+    media_group_id: str = None
 
     def send(self) -> telebot.types.Message:
         if not self.media_id:
@@ -106,6 +106,7 @@ class MessageToSend:
                                        chat_id=self.chat_id,
                                        message_id=self.message_id
                                        )
+            self.db.edit_message(self.message_id, self.text)
         except Exception as err:
             print(f'\033[31mERROR:\033[0m {err.__str__()}')
 
@@ -143,6 +144,7 @@ class MessageToSend:
                                         message_id=self.message_id
                                         )
 
+            self.db.edit_message(message_id=self.message_id, new_text=self.text, new_media_id=self.media_id)
         except Exception as err:
             print(f'\033[31mERROR:\033[0m {err.__str__()}')
 
@@ -298,6 +300,32 @@ class DbData:
         self.execute("""
             UPDATE chat SET emoji_to_edit = ? WHERE chat_id = ? and topic = ?;
         """, (emoji, chat_id, topic))
+
+    def edit_message(self, message_id: int, new_text: str = None, new_media_id: str = None):
+        if new_text and new_media_id is None:
+            res = self.execute("""
+                UPDATE message
+                SET text = ?
+                WHERE message_id = ?;
+            """, (new_text, message_id, ))
+        elif new_media_id:
+            if new_text:
+                res = self.execute("""
+                    UPDATE message
+                    SET text = ?, media_id = ?
+                    WHERE message_id = ?;
+                """, (new_text, new_media_id, message_id,))
+
+            else:
+                res = self.execute("""
+                    UPDATE message
+                    SET media_id = ?
+                    WHERE message_id = ?;
+                """, (new_media_id, message_id,))
+
+        else:
+            return None
+
 
 
 class Command(ABC):
