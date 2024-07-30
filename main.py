@@ -74,6 +74,18 @@ def reaction_handler(reaction: telebot.types.MessageReactionUpdated):
         logging.error(err)
 
 
+@bot.edited_message_handler(content_types=['text', 'photo'])
+def edited_handler(message: telebot.types.Message):
+    try:
+        db = DbData()
+        if message.content_type == 'text':
+            db.edit_message(message.message_id, message.text)
+        elif message.content_type == 'photo':
+            db.edit_message(message.message_id, message.caption, message.json['photo'][-1]['file_id'])
+    except Exception as err:
+        logging.error(err)
+
+
 if __name__ == '__main__':
     DbData().first_launch()
-    bot.infinity_polling(timeout=10000, allowed_updates=['message', 'message_reaction'])
+    bot.infinity_polling(timeout=10000, allowed_updates=['message', 'message_reaction', 'edited_message'])
